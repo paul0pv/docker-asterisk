@@ -1,0 +1,97 @@
+#!/bin/bash
+
+solicitar_parametro() {
+  read -p "$1: " parametro
+  echo "$parametro"
+}
+
+#solicitar_puertos() {
+#  declare -a puertos
+#  read -p "Ingrese los dos puertos en el host separados por espacios(recomendable usar el mismo puerto): " puertos
+#  echo "${puertos[@]}"
+#}
+
+if [[ -z "$1" ]]; then
+  echo "Error: No se ha provisto ningún argumento. Por favor especifique 'image', 'container create|start|stop|cmd|sngrep'."
+  exit 1
+fi
+
+CHAR="$1"
+
+case "$CHAR" in
+image)
+  #####################Configuración de los archivos de asterisk#####################################
+  #   sed -i 's/[700]/[$(user_cid)]/g' ./config/users.conf
+  #   sed -i 's/secret=secret/secret=$(user_password)/g' ./config/users.conf
+  #   sed -i 's/callerid="Usuario" <700>/callerid="$(user_callerid)" <$(user_cid)>/g' ./config/users.conf
+  ##   sed -i '/root@42aec15d01a0:/i\
+  ##  [700]\n\
+  ##  secret=secret\n\
+  ##  callerid="Usuario" \n\
+  ##   host=dynamic' ./config/sip.conf
+  #   sed -i 's/rtpstart=$(min_port)/rtpstart=$(max_port)/g' ./config/rtp.conf
+  #   sed -i 's/rtpend=20000/rtpend=$(max_port)/g' ./config/rtp.conf
+  #   sed -i '/\[default\]/a\exten => 800,1,Answer()\nsame => n,Playback(please-try-call-later)\nsame => n,Hangup()' ./config/extensions.conf
+  ####################################################################################################
+  ##Usando los archivos *.conf por defecto
+  podman build -t docker-asterisk .
+  ;;
+container)
+  if [[ -z "$2" ]]; then
+    echo "Por favor, especifique una acción: 'create', 'start', 'stop', 'cmd','bash' or 'sngrep'."
+    exit 1
+  fi
+
+  container_action="$2"
+  container_name="docker-asterisk"
+  host_port="5060"
+
+  case "$container_action" in
+  create)
+    #if [[ -f "docker-compose.yml" ]]; then # Eliminar el archivo
+    #  > docker-compose.yml
+    #fi
+    if podman ps -a | grep -q "docker-asterisk"; then
+      echo "El contenedor 'docker-asterisk' ya existe."
+      exit 1
+    fi
+    container_mame=$(solicitar_parametro "Ingrese el nombre del contenedor")
+    host_port=$(solicitar_parametro "Ingrese el puerto en el host")
+    ###################################Docker compose#####################################
+    #sed "s/\${HOST_PORT}/$puerto_host/g" docker-compose.template.yml > docker-compose.yml
+    #docker compose up -d
+    ######################################################################################
+    podman run -itd --name "$container_name" \
+      -p "$host_port:5060/tcp" \
+      -p "$host_port:5060/udp" \
+      -p 10000-10010:10000-10010/udp \
+      docker-asterisk
+
+    echo "Contenedor '$container_name' creado exitosamente."
+    ;;
+  start)
+    podman start $container_name || echo "Error: Fallo al iniciar docker-asterisk"
+    ;;
+  stop)
+    podman stop $container_name || echo "Error: Fallo en detener docker-asterisk"
+    ;;
+  asterisk)
+    podman exec -it $container_name /usr/sbin/asterisk -rvvv || echo "Error: Falló la ejecución de asterisk -rvvv en docker-asterisk"
+    ;;
+  bash)
+    podman exec -it $container_name /bin/bash || echo "Error: Falló la ejecución de /bin/bash en docker-asterisk"
+    ;;
+  sngrep)
+    podman exec -it $container_name sngrep || echo "Error: Falló la ejecución de sngrep en docker-asterisk"
+    ;;
+  *)
+    echo "Opción inválida. Por favor, especifique 'create', 'start', 'stop', 'cmd', or 'sngrep'."
+    exit 1
+    ;;
+  esac
+  ;;
+*)
+  echo "Opción inválida. Por favor, especifique 'image' o 'container create|start|stop|asterisk|bash|sngrep."
+  exit 1
+  ;;
+esac

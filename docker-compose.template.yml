@@ -1,0 +1,6 @@
+services:
+  docker-asterisk:
+    image: docker-asterisk
+    ports:
+      - "${HOST_PORT}:5060/udp"
+      - "10000-10010:10000-10010/udp"
